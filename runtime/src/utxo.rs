@@ -68,6 +68,7 @@ pub struct TransactionOutput {
 	pub pubkey: H256,
 }
 
+// defines new storage variables that are stored on our blockchain state
 decl_storage! {
 	trait Store for Module<T: Trait> as Utxo {
 		/// All valid unspent transaction outputs are stored in this map.
@@ -95,7 +96,7 @@ decl_storage! {
 	}
 }
 
-// External functions: callable by the end user
+// External functions & internal helper functions responsible for state transitioning: callable by the end user
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		fn deposit_event() = default;
@@ -126,6 +127,7 @@ decl_module! {
 	}
 }
 
+// defines any onchain event we want to admit
 decl_event!(
 	pub enum Event {
 		/// Transaction was executed successfully

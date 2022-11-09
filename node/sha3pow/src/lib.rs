@@ -1,7 +1,7 @@
-use sp_core::{U256, H256};
+use sp_core::{U256, H256, Encode, Decode};
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Block as BlockT;
-use parity_scale_codec::{Encode, Decode};
+// use parity_scale_codec::{Encode, Decode};
 use sc_consensus_pow::{PowAlgorithm, Error};
 use sp_consensus_pow::{Seal as RawSeal, DifficultyApi};
 use sha3::{Sha3_256, Digest};
@@ -93,7 +93,7 @@ impl<B: BlockT<Hash=H256>, C> PowAlgorithm<B> for Sha3Algorithm<C> where
 		pre_hash: &H256,
 		_pre_digest: Option<&[u8]>,
 		seal: &RawSeal,
-		difficulty: Self::Difficulty
+		difficulty: Self::Difficulty,
 	) -> Result<bool, Error<B>> {
 		// Try to construct a seal object by decoding the raw seal given
 		let seal = match Seal::decode(&mut &seal[..]) {
@@ -103,7 +103,7 @@ impl<B: BlockT<Hash=H256>, C> PowAlgorithm<B> for Sha3Algorithm<C> where
 
 		// See whether the hash meets the difficulty requirement. If not, fail fast.
 		if !hash_meets_difficulty(&seal.work, difficulty) {
-			return Ok(false)
+			return Ok(false);
 		}
 
 		// Make sure the provided work actually comes from the correct pre_hash
@@ -114,45 +114,45 @@ impl<B: BlockT<Hash=H256>, C> PowAlgorithm<B> for Sha3Algorithm<C> where
 		};
 
 		if compute.compute() != seal {
-			return Ok(false)
+			return Ok(false);
 		}
 
 		Ok(true)
 	}
 
-	fn mine(
-		&self,
-		_parent: &BlockId<B>,
-		pre_hash: &H256,
-		_pre_digest: Option<&[u8]>,
-		difficulty: Self::Difficulty,
-		round: u32 // The number of nonces to try during this call
-	) -> Result<Option<RawSeal>, Error<B>> {
-		// Get a randomness source from the environment; fail if one isn't available
-		let mut rng = SmallRng::from_rng(&mut thread_rng())
-			.map_err(|e| Error::Environment(format!("Initialize RNG failed for mining: {:?}", e)))?;
-
-		// Loop the specified number of times
-		for _ in 0..round {
-
-			// Choose a new nonce
-			let nonce = H256::random_using(&mut rng);
-
-			// Calculate the seal
-			let compute = Compute {
-				difficulty,
-				pre_hash: *pre_hash,
-				nonce,
-			};
-			let seal = compute.compute();
-
-			// If we solved the PoW then return, otherwise loop again
-			if hash_meets_difficulty(&seal.work, difficulty) {
-				return Ok(Some(seal.encode()))
-			}
-		}
-
-		// Tried the specified number of rounds and never found a solution
-		Ok(None)
-	}
+	// fn mine(
+	// 	&self,
+	// 	parent: &BlockId<B>,
+	// 	pre_hash: &H256,
+	// 	pre_digest: Option<&[u8]>,
+	// 	difficulty: Self::Difficulty,
+	// 	round: u32, // The number of nonces to try during this call
+	// ) -> Result<Option<RawSeal>, Error<B>> {
+	// 	// Get a randomness source from the environment; fail if one isn't available
+	// 	let mut rng = SmallRng::from_rng(&mut thread_rng())
+	// 		.map_err(|e| Error::Environment(format!("Initialize RNG failed for mining: {:?}", e)))?;
+	//
+	// 	// Loop the specified number of times
+	// 	for _ in 0..round {
+	//
+	// 		// Choose a new nonce
+	// 		let nonce = H256::random_using(&mut rng);
+	//
+	// 		// Calculate the seal
+	// 		let compute = Compute {
+	// 			difficulty,
+	// 			pre_hash: *pre_hash,
+	// 			nonce,
+	// 		};
+	// 		let seal = compute.compute();
+	//
+	// 		// If we solved the PoW then return, otherwise loop again
+	// 		if hash_meets_difficulty(&seal.work, difficulty) {
+	// 			return Ok(Some(seal.encode()));
+	// 		}
+	// 	}
+	//
+	// 	// Tried the specified number of rounds and never found a solution
+	// 	Ok(None)
+	// }
 }
