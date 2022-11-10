@@ -8,73 +8,43 @@ name = 'node-template'
 repository = 'https://github.com/paritytech/substrate/'
 version = '2.0.0-alpha.5'
 
-[build-dependencies]
-vergen = '3.0.4'
 
-[build-dependencies.build-script-utils]
-package = 'substrate-build-script-utils'
-version = '2.0.0-alpha.5'
+[build-dependencies]
+substrate-build-script-utils = { version = "3.0.0" }
+vergen = { version = "7.4.2" }
 
 [dependencies]
-futures = '0.3.1'
-log = '0.4.8'
-structopt = '0.3.8'
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false}
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-blockchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-consensus = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-core = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-inherents = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-cli = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-executor = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git",  branch = "polkadot-v0.9.28" }
+sc-network = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git" , branch = "polkadot-v0.9.28" }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git",  branch = "polkadot-v0.9.28" }
+sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-consensus-pow = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-client-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-finality-grandpa = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+sc-client = { version = "0.8.0-alpha.6" }
 
-[dependencies.grandpa]
-package = 'sc-finality-grandpa'
-version = '0.8.0-alpha.5'
-
-[dependencies.grandpa-primitives]
-package = 'sp-finality-grandpa'
-version = '2.0.0-alpha.5'
+futures = { version = '0.3.1' }
+log = { version = '0.4.8' }
+structopt = { version = '0.3.8' }
+sha3 = { version = "0.10.6" }
+rand = { version = "0.8.5", features = ["small_rng"] }
+hex = { version = "0.4" }
 
 [dependencies.utxo-runtime]
 path = '../runtime'
-version = '2.0.0-alpha.5'
-
-[dependencies.sc-basic-authorship]
-version = '0.8.0-alpha.5'
-
-[dependencies.sc-cli]
-version = '0.8.0-alpha.5'
-
-[dependencies.sc-client]
-version = '0.8.0-alpha.5'
-
-[dependencies.sc-client-api]
-version = '2.0.0-alpha.5'
-
-[dependencies.sc-consensus-aura]
-version = '0.8.0-alpha.5'
-
-[dependencies.sc-executor]
-version = '0.8.0-alpha.5'
-
-[dependencies.sc-network]
-version = '0.8.0-alpha.5'
-
-[dependencies.sc-service]
-version = '0.8.0-alpha.5'
-
-[dependencies.sc-transaction-pool]
-version = '2.0.0-alpha.5'
-
-[dependencies.sp-consensus]
-version = '0.8.0-alpha.5'
-
-[dependencies.sp-consensus-aura]
-version = '0.8.0-alpha.5'
-
-[dependencies.sp-core]
-version = '2.0.0-alpha.5'
-
-[dependencies.sp-inherents]
-version = '2.0.0-alpha.5'
-
-[dependencies.sp-runtime]
-version = '2.0.0-alpha.5'
-
-[dependencies.sp-transaction-pool]
 version = '2.0.0-alpha.5'
 
 [[bin]]
