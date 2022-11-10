@@ -52,26 +52,25 @@ pub fn new_partial(config: &Configuration, sr25519_public_key: sr25519::Public) 
 		FullClient, FullBackend, FullSelectChain,
 		BasicQueue<Block, TransactionFor<FullClient, Block>>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
-		sc_consensus_pow::PowBlockImport<Block, Arc<FullClient>, FullClient, FullSelectChain, Sha3Algorithm<FullClient>, impl sp_consensus::CanAuthorWith<Block>>,
+		sc_consensus_pow::PowBlockImport<Block, Arc<FullClient>, FullClient, FullSelectChain, Sha3Algorithm<FullClient>, impl sp_consensus::CanAuthorWith<Block>, CIDP>,
 	>,
-ServiceError> {
+	ServiceError> {
 	let inherent_data_providers = build_inherent_data_providers(sr25519_public_key)?;
 
 	let (client, backend, keystore, task_manager) =
-		sc_service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
-	let client : std::sync::Arc<_> = Arc::new(client);
+		sc_service::new_full_parts::<Block, RuntimeApi, Executor>(&config, None, ())?;
+	let client: std::sync::Arc<_> = Arc::new(client);
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
-		config.transaction_pool.clone(),
-		config.prometheus_registry(),
-		task_manager.spawn_handle(),
-		client.clone(),
-	);
+	let transaction_pool = sc_transaction_pool::BasicPool::new_full(config.transaction_pool.clone(),
+																	config.role.is_authority().into(),
+																	config.prometheus_registry(),
+																	task_manager.spawn_handle(),
+																	Arc::new(client.clone()));
 
 	let can_author_with =
-			sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
+		sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 	let pow_block_import = sc_consensus_pow::PowBlockImport::new(
 		client.clone(),
@@ -89,23 +88,26 @@ ServiceError> {
 		None,
 		Sha3Algorithm::new(client.clone()),
 		inherent_data_providers.clone(),
-		&task_manager.spawn_handle(),
-		config.prometheus_registry(),
 	)?;
 
 	Ok(PartialComponents {
-		client, backend, import_queue, keystore, task_manager, transaction_pool,
-		select_chain, inherent_data_providers,
+		client,
+		backend,
+		import_queue,
+		task_manager,
+		transaction_pool,
+		select_chain,
 		other: pow_block_import,
+		keystore_container: ()
 	})
 }
 
 /// Builds a new service for a full client.
 pub fn new_full(config: Configuration, sr25519_public_key: sr25519::Public) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
-		client, backend, mut task_manager, import_queue, keystore, select_chain, transaction_pool,
+		client, backend, mut task_manager, import_queue, select_chain, transaction_pool,
 		inherent_data_providers,
-		other: pow_block_import,
+		other: pow_block_import, ..
 	} = new_partial(&config, sr25519_public_key)?;
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
@@ -115,10 +117,8 @@ pub fn new_full(config: Configuration, sr25519_public_key: sr25519::Public) -> R
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			on_demand: None,
 			block_announce_validator_builder: None,
-			finality_proof_request_builder: None,
-			finality_proof_provider: None,
+			warp_sync: None
 		})?;
 
 	let role = config.role.clone();
@@ -131,21 +131,16 @@ pub fn new_full(config: Configuration, sr25519_public_key: sr25519::Public) -> R
 		keystore: keystore.clone(),
 		task_manager: &mut task_manager,
 		transaction_pool: transaction_pool.clone(),
-		telemetry_connection_sinks: telemetry_connection_sinks.clone(),
-		rpc_extensions_builder: Box::new(|_, _| ()),
-		on_demand: None,
-		remote_blockchain: None,
-		backend, network_status_sinks, system_rpc_tx, config,
+		backend,
+		system_rpc_tx,
+		config,
+		rpc_builder: Box::new(()),
+		telemetry: None
 	})?;
 
 
-
 	if role.is_authority() {
-		let proposer = sc_basic_authorship::ProposerFactory::new(
-			client.clone(),
-			transaction_pool,
-			prometheus_registry.as_ref(),
-		);
+		let proposer = sc_basic_authorship::ProposerFactory::new(client.clone(), transaction_pool, prometheus_registry.as_ref(), None, None);
 
 		// The number of rounds of mining to try in a single call
 		let rounds = 500;
@@ -209,8 +204,6 @@ pub fn new_light(config: Configuration, sr25519_public_key: sr25519::Public) -> 
 		None,
 		Sha3Algorithm::new(client.clone()),
 		inherent_data_providers.clone(),
-		&task_manager.spawn_handle(),
-		config.prometheus_registry(),
 	)?;
 
 	let fprb = Box::new(DummyFinalityProofRequestBuilder::default()) as Box<_>;
@@ -222,29 +215,24 @@ pub fn new_light(config: Configuration, sr25519_public_key: sr25519::Public) -> 
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			on_demand: Some(on_demand.clone()),
 			block_announce_validator_builder: None,
-			finality_proof_request_builder: Some(fprb),
-			finality_proof_provider: None,
+			warp_sync: None
 		})?;
 
 	sc_service::spawn_tasks(sc_service::SpawnTasksParams {
-		remote_blockchain: Some(backend.remote_blockchain()),
 		transaction_pool,
 		task_manager: &mut task_manager,
-		on_demand: Some(on_demand),
-		rpc_extensions_builder: Box::new(|_, _| ()),
-		telemetry_connection_sinks: sc_service::TelemetryConnectionSinks::default(),
 		config,
 		client,
 		keystore,
 		backend,
 		network,
-		network_status_sinks,
 		system_rpc_tx,
-	 })?;
+		rpc_builder: Box::new(()),
+		telemetry: None
+	})?;
 
-	 network_starter.start_network();
+	network_starter.start_network();
 
-	 Ok(task_manager)
+	Ok(task_manager)
 }

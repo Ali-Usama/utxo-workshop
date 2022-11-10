@@ -5,13 +5,14 @@
 //! and worth-while experiment. The DAAs should be abstracted away with a trait.
 //! Some ideas: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3410460
 
+use scale_info::TypeInfo;
 use core::cmp::{min, max};
 use sp_runtime::traits::UniqueSaturatedInto;
 use frame_support::{decl_storage, decl_module, traits::{Get, Time}};
 use codec::{Encode, Decode};
 use sp_core::U256;
 
-#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, Debug, TypeInfo)]
 pub struct DifficultyAndTimestamp<M> {
 	pub difficulty: Difficulty,
 	pub timestamp: M,
@@ -29,7 +30,7 @@ pub fn clamp(actual: u128, goal: u128, clamp_factor: u128) -> u128 {
 
 /// Pallet's configuration trait.
 /// Tightly coupled to the timestamp trait because we need it's timestamp information
-pub trait Trait: frame_system::Trait {
+pub trait Config: frame_system::Config {
 	/// A Source for timestamp data
 	type TimeProvider: Time;
 	/// The block time that the DAA will attempt to maintain
@@ -51,10 +52,10 @@ const DIFFICULTY_ADJUST_WINDOW: u128 = 60;
 type Difficulty = U256;
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Difficulty {
+	trait Store for Module<T: Config> as Difficulty {
 		/// Past difficulties and timestamps, from earliest to latest.
 		PastDifficultiesAndTimestamps:
-		[Option<DifficultyAndTimestamp<<<T as Trait>::TimeProvider as Time>::Moment>>; 60]
+		[Option<DifficultyAndTimestamp<<<T as Config>::TimeProvider as Time>::Moment>>; 60]
 			= [None; DIFFICULTY_ADJUST_WINDOW as usize];
 		/// Current difficulty.
 		pub CurrentDifficulty get(fn difficulty) build(|config: &GenesisConfig| {
@@ -66,7 +67,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		fn on_finalize(_n: T::BlockNumber) {
 			let mut data = PastDifficultiesAndTimestamps::<T>::get();
 

@@ -8,7 +8,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use sp_std::prelude::*;
+use sp_std::{prelude::*, convert::TryInto, convert::TryFrom};
 use sp_core::{OpaqueMetadata, U256};
 use sp_runtime::{
 	ApplyExtrinsicResult,
@@ -35,20 +35,31 @@ use sp_version::RuntimeVersion;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 
+// use pallet_grandpa::{
+// 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
+// };
+//
+// use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+
 // A few exports that help ease life for downstream crates.
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use timestamp::Call as TimestampCall;
-pub use balances::Call as BalancesCall;
+pub use frame_system::Call as SystemCall;
+pub use pallet_balances::Call as BalancesCall;
+pub use pallet_timestamp::Call as TimestampCall;
+// use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Permill, Perbill};
 pub use frame_support::{
-	StorageValue, construct_runtime, parameter_types,
-	dispatch::{Callable, IsSubType},
-	traits::Randomness,
+	construct_runtime, parameter_types, Callable,
+	traits::{
+		ConstU128, ConstU32, ConstU64, ConstU8, KeyOwnerProofSystem, Randomness, StorageInfo, Nothing,
+		IsSubType
+	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-		Weight,
+		IdentityFee, Weight,
 	},
+	StorageValue,
 };
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -74,7 +85,7 @@ pub type Index = u32;
 pub type Hash = sp_core::H256;
 
 /// Digest item type.
-pub type DigestItem = generic::DigestItem<Hash>;
+pub type DigestItem = generic::DigestItem;
 
 /// The UTXO pallet in `./utxo.rs`
 pub mod utxo;
@@ -114,6 +125,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
+	state_version: 1
 };
 
 /// The version information used to identify this runtime when compiled natively.
@@ -125,26 +137,29 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
 parameter_types! {
 	pub const BlockHashCount: BlockNumber = 250;
 	pub const MaximumBlockWeight: Weight = 5 * WEIGHT_PER_SECOND;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
-	// Assume 10% of weight for average on_initialize calls.
-	pub MaximumExtrinsicWeight: Weight = AvailableBlockRatio::get()
-		.saturating_sub(Perbill::from_percent(10)) * MaximumBlockWeight::get();
-	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
 	pub const Version: RuntimeVersion = VERSION;
+	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
+		::with_sensible_defaults(2 * WEIGHT_PER_SECOND, NORMAL_DISPATCH_RATIO);
+	pub BlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
+		::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+	pub const SS58Prefix: u8 = 42;
 }
 
-impl frame_system::Trait for Runtime {
+impl frame_system::Config for Runtime {
 	/// The basic call filter to use in dispatchable.
-	type BaseCallFilter = ();
-	/// The identifier used to distinguish between accounts.
-	type AccountId = AccountId;
+	type BaseCallFilter = frame_support::traits::Everything;
+	type BlockWeights = BlockWeights;
+	type BlockLength = BlockLength;
+	/// The ubiquitous origin type.
+	type Origin = Origin;
 	/// The aggregated dispatch type that is available for extrinsics.
 	type Call = Call;
-	/// The lookup mechanism to get account ID from whatever is passed in dispatchers.
-	type Lookup = IdentityLookup<AccountId>;
 	/// The index type for storing how many extrinsics an account has signed.
 	type Index = Index;
 	/// The index type for blocks.
@@ -153,54 +168,40 @@ impl frame_system::Trait for Runtime {
 	type Hash = Hash;
 	/// The hashing algorithm used.
 	type Hashing = BlakeTwo256;
+	/// The identifier used to distinguish between accounts.
+	type AccountId = AccountId;
+	/// The lookup mechanism to get account ID from whatever is passed in dispatchers.
+	type Lookup = IdentityLookup<AccountId>;
 	/// The header type.
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	/// The ubiquitous event type.
 	type Event = Event;
-	/// The ubiquitous origin type.
-	type Origin = Origin;
 	/// Maximum number of block number to block hash mappings to keep (oldest pruned first).
 	type BlockHashCount = BlockHashCount;
-	/// Maximum weight of each block.
-	type MaximumBlockWeight = MaximumBlockWeight;
 	/// The weight of database operations that the runtime can invoke.
 	type DbWeight = RocksDbWeight;
-	/// The weight of the overhead invoked on the block import process, independent of the
-	/// extrinsics included in that block.
-	type BlockExecutionWeight = BlockExecutionWeight;
-	/// The base weight of any extrinsic processed by the runtime, independent of the
-	/// logic of that extrinsic. (Signature verification, nonce increment, fee, etc...)
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	/// The maximum weight that a single extrinsic of `Normal` dispatch class can have,
-	/// idependent of the logic of that extrinsic. (Roughly max block weight - average on
-	/// initialize cost).
-	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
-	/// Maximum size of all encoded transactions (in bytes) that are allowed in one block.
-	type MaximumBlockLength = MaximumBlockLength;
-	/// Portion of the block weight that is available to all normal transactions.
-	type AvailableBlockRatio = AvailableBlockRatio;
 	/// Version of the runtime.
 	type Version = Version;
-	/// Converts a module to the index of the module in `construct_runtime!`.
-	///
-	/// This type is being generated by `construct_runtime!`.
-	type ModuleToIndex = ModuleToIndex;
+	type PalletInfo = PalletInfo;
+	/// The data to be stored in an account.
+	type AccountData = pallet_balances::AccountData<Balance>;
 	/// What to do if a new account is created.
 	type OnNewAccount = ();
 	/// What to do if an account is fully reaped from the system.
 	type OnKilledAccount = ();
-	/// The data to be stored in an account.
-	type AccountData = balances::AccountData<Balance>;
 	/// Weight information for the extrinsics of this pallet.
 	type SystemWeightInfo = ();
+	type SS58Prefix = SS58Prefix;
+	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
 	pub const MinimumPeriod: u64 = 1000;
 }
 
-impl timestamp::Trait for Runtime {
-	/// A timestamp: milliseconds since the unix epoch.
+impl pallet_timestamp::Config for Runtime {
+	/// A pallet_timestamp: milliseconds since the unix epoch.
 	type Moment = u64;
 	type OnTimestampSet = ();
 	type MinimumPeriod = MinimumPeriod;
@@ -211,18 +212,21 @@ parameter_types! {
 	pub const ExistentialDeposit: u128 = 500;
 }
 
-impl balances::Trait for Runtime {
+impl pallet_balances::Config for Runtime {
 	/// The type for recording an account's balance.
 	type Balance = Balance;
+	type DustRemoval = ();
 	/// The ubiquitous event type.
 	type Event = Event;
-	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = ();
+	type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
+	type MaxLocks = ConstU32<50>;
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
 }
 
-impl sudo::Trait for Runtime {
+impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 }
@@ -234,7 +238,7 @@ parameter_types! {
 	pub const MaxDifficulty: u128 = u128::max_value();
 }
 
-impl difficulty::Trait for Runtime {
+impl difficulty::Config for Runtime {
 	type TimeProvider = Timestamp;
 	type TargetBlockTime = TargetBlockTime;
 	type DampFactor = DampFactor;
@@ -244,29 +248,29 @@ impl difficulty::Trait for Runtime {
 	type MinDifficulty = DampFactor;
 }
 
-impl block_author::Trait for Runtime {}
+impl block_author::Config for Runtime {}
 
-impl utxo::Trait for Runtime {
+impl utxo::Config for Runtime {
 	type Event = Event;
 	type BlockAuthor = BlockAuthor;
 	type Issuance = issuance::BitcoinHalving;
 }
 
 construct_runtime!(
-	pub enum Runtime where
+	pub struct Runtime where
 		Block = Block,
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		Timestamp: timestamp::{Module, Call, Storage, Inherent},
+		System: frame_system,
+		Timestamp: pallet_timestamp,
 		//TODO Should we remove balance pallet? It isn't necessary and might be confusing
 		// alongside the UTXO tokens. But it is darn convenient for testing a quick transaction.
-		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
-		Sudo: sudo::{Module, Call, Config<T>, Storage, Event<T>},
-		DifficultyAdjustment: difficulty::{Module, Storage, Config},
-		BlockAuthor: block_author::{Module, Call, Storage, Inherent},
-		Utxo: utxo::{Module, Call, Storage, Config, Event},
+		Balances: pallet_balances,
+		Sudo: pallet_sudo,
+		DifficultyAdjustment: difficulty::{Pallet, Storage, Config},
+		BlockAuthor: block_author::{Pallet, Call, Storage, Inherent},
+		Utxo: utxo::{Pallet, Call, Storage, Config, Event},
 	}
 );
 
@@ -292,8 +296,10 @@ pub type SignedExtra = (
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
+/// The payload being signed in transactions.
+pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPalletsWithSystem>;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -312,7 +318,7 @@ impl_runtime_apis! {
 
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
-			Runtime::metadata().into()
+			OpaqueMetadata::new(Runtime::metadata().into())
 		}
 	}
 
@@ -336,20 +342,21 @@ impl_runtime_apis! {
 			data.check_extrinsics(&block)
 		}
 
-		fn random_seed() -> <Block as BlockT>::Hash {
-			// This runtime does not have a randomness source so we jsut return the default Hash
-			// This should certainly not be treated as random.
-			Default::default()
-		}
+		// fn random_seed() -> <Block as BlockT>::Hash {
+		// 	// This runtime does not have a randomness source so we jsut return the default Hash
+		// 	// This should certainly not be treated as random.
+		// 	Default::default()
+		// }
 	}
 
 	impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(
 			source: TransactionSource,
 			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
 			// Extrinsics representing UTXO transaction need some special handling
-			if let Some(&utxo::Call::spend(ref transaction)) = IsSubType::<<Utxo as Callable<Runtime>>::Call>::is_sub_type(&tx.function) {
+			if let Some(&utxo::Call::spend{ ref transaction }) = IsSubType::<<Utxo as Callable<Runtime>>::Call>::is_sub_type(&tx.function) {
 				match Utxo::validate_transaction(&transaction) {
 					// Transaction verification failed
 					Err(e) => {
@@ -359,10 +366,12 @@ impl_runtime_apis! {
 					// Race condition, or Transaction is good to go
 					Ok(tv) => { return Ok(tv); }
 				}
+			} else {
+				sp_runtime::print("Unable to run race condition");
 			}
 
 			// Fall back to default logic for non UTXO-spending extrinsics
-			Executive::validate_transaction(source, tx)
+			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 
