@@ -1,10 +1,10 @@
 # UTXO on Substrate
 
-### _Note: this workshop is presently not actively maintained and is using older versions of all dependancies than presently used in substrate._
+### _Workshop Code updated to be compatible with Rust1.63 by Usama Ali._
 
-A UTXO chain implementation on Substrate, with two self-guided workshops. Original [UXTO inspiration](https://github.com/0x7CFE/substrate-node-template/tree/utxo) by [Dmitriy Kashitsyn](https://github.com/0x7CFE).
+A UTXO chain implementation on Substrate, with two self-guided workshops. Original [UXTO inspiration](https://github.com/0x7CFE/substrate-node-template/tree/utxo)
 
-Substrate Version: `2.0.0-rc6`. For educational purposes only.
+Substrate Version: `4.0.0-dev`. For educational purposes only.
 
 ## Table of Contents
 - [Installation](#Installation): Setting up Rust & Substrate dependencies
