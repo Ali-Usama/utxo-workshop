@@ -20,7 +20,6 @@ use sp_runtime::{
 		Block as BlockT,
 		IdentifyAccount,
 		IdentityLookup,
-		Saturating,
 		Verify,
 	},
 	transaction_validity::{
@@ -47,7 +46,7 @@ pub use sp_runtime::BuildStorage;
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
-// use pallet_transaction_payment::CurrencyAdapter;
+use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Permill, Perbill};
 pub use frame_support::{
 	construct_runtime, parameter_types, Callable,
@@ -256,6 +255,15 @@ impl utxo::Config for Runtime {
 	type Issuance = issuance::BitcoinHalving;
 }
 
+impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
+	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
+	type OperationalFeeMultiplier = ConstU8<5>;
+	type WeightToFee = IdentityFee<Balance>;
+	type LengthToFee = IdentityFee<Balance>;
+	type FeeMultiplierUpdate = ();
+}
+
 construct_runtime!(
 	pub struct Runtime where
 		Block = Block,
@@ -267,6 +275,7 @@ construct_runtime!(
 		//TODO Should we remove balance pallet? It isn't necessary and might be confusing
 		// alongside the UTXO tokens. But it is darn convenient for testing a quick transaction.
 		Balances: pallet_balances,
+		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
 		DifficultyAdjustment: difficulty::{Pallet, Storage, Config},
 		BlockAuthor: block_author::{Pallet, Call, Storage, Inherent},
@@ -349,6 +358,21 @@ impl_runtime_apis! {
 		// }
 	}
 
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance> for Runtime {
+		fn query_info(
+			uxt: <Block as BlockT>::Extrinsic,
+			len: u32,
+		) -> pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_info(uxt, len)
+		}
+		fn query_fee_details(
+			uxt: <Block as BlockT>::Extrinsic,
+			len: u32,
+		) -> pallet_transaction_payment::FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
+		}
+	}
+
 	impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(
 			source: TransactionSource,
@@ -396,6 +420,12 @@ impl_runtime_apis! {
 	impl sp_consensus_pow::DifficultyApi<Block, U256> for Runtime {
 		fn difficulty() -> U256 {
 			DifficultyAdjustment::difficulty()
+		}
+	}
+
+	impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index> for Runtime {
+		fn account_nonce(account: AccountId) -> Index {
+			System::account_nonce(account)
 		}
 	}
 }
